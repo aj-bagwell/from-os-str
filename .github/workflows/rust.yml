@@ -1,0 +1,22 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Format
+      run: cargo fmt -- --check
+    - name: Check
+      run: cargo check --tests
+    - name: Clippy
+      run: cargo clippy --no-deps
+    - name: Docs
+      run: cargo doc
+    - name: Run tests
+      run: cargo test

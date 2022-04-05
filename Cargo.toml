@@ -2,6 +2,19 @@
 name = "from-os-str"
 version = "0.1.0"
 edition = "2021"
+description = "A macro that uses autoref based specialization to guess how to convert a &OsStr to a more useful type"
+repository = "https://github.com/aj-bagwell/from-os-str"
+documentation = "https://docs.rs/from-os-str/"
+categories = ["command-line-interface"]
+keywords = [
+        "argument",
+        "cli",
+        "arg",
+        "ostr",
+        "osstring"
+]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
