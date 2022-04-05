@@ -18,6 +18,32 @@ pub struct Wrap<T>(pub T);
 // https://lukaskalbertodt.github.io/2019/12/05/generalized-autoref-based-specialization.html
 macro_rules! specialize {
     (impl ($($and:tt)+) $name:ident for $from_ty:path {
+        fn from_str($s:ident: &str) -> Result<T, $err:ty> {$($body:tt)*}
+    }) => {
+        specialize! {
+            impl ($($and)+) $name for $from_ty {
+                fn specialized(&self) -> Result<T, Error<$err>> {
+                    match self.0.0.to_str() {
+                        None => Err(Error::Utf8),
+                        Some($s) => {$($body)*}.map_err(Error::ParseErr),
+                    }
+                }
+            }
+        }
+    };
+    (impl ($($and:tt)+) $name:ident for $from_ty:path {
+        fn from_os_str($s:ident: &OsStr) -> Result<T, $err:ty> {$($body:tt)*}
+    }) => {
+        specialize! {
+            impl ($($and)+) $name for $from_ty {
+                fn specialized(&self) -> Result<T, $err> {
+                    let $s = self.0.0;
+                    $($body)*
+                }
+            }
+        }
+    };
+    (impl ($($and:tt)+) $name:ident for $from_ty:path {
         fn specialized(&$self:ident) -> Result<T, $err:ty> {$($body:tt)*}
     }) => {
         pub trait $name {
@@ -35,76 +61,64 @@ macro_rules! specialize {
 // Conversions from lowest priority to heighest
 specialize! {
     impl (&) Specialize8 for FromStr {
-        fn specialized(&self) -> Result<T, Error<T::Err>> {
-            match self.0 .0.to_str() {
-                None => Err(Error::Utf8),
-                Some(s) => T::from_str(s).map_err(Error::ParseErr),
-            }
+        fn from_str(s: &str) -> Result<T, T::Err> {
+            T::from_str(s)
         }
     }
 }
 
 specialize! {
     impl (&&) Specialize7 for TryFrom<&'a OsStr> {
-        fn specialized(&self) -> Result<T, T::Error> {
-            T::try_from(self.0 .0)
+        fn from_os_str(s: &OsStr) -> Result<T, T::Error> {
+            T::try_from(s)
         }
     }
 }
 
 specialize! {
     impl (&&&) Specialize6 for TryFrom<&'a str> {
-        fn specialized(&self) -> Result<T, Error<T::Error>> {
-            match self.0 .0.to_str() {
-                None => Err(Error::Utf8),
-                Some(s) => T::try_from(s).map_err(Error::ParseErr),
-            }
+        fn from_str(s: &str) -> Result<T, T::Error> {
+            T::try_from(s)
         }
     }
 }
 
 specialize! {
     impl (&&&&) Specialize5 for From<String> {
-        fn specialized(&self) -> Result<T, Error<Infallible>> {
-            match self.0.0.to_str() {
-                None => Err(Error::Utf8),
-                Some(s) => Ok(T::from(s.to_string())),
-            }
+        fn from_str(s: &str) -> Result<T, Infallible> {
+            Ok(T::from(s.to_string()))
         }
     }
 }
 
 specialize! {
     impl (&&&&&) Specialize4 for From<&'a str> {
-        fn specialized(&self) -> Result<T, Error<Infallible>> {
-            match self.0.0.to_str() {
-                None => Err(Error::Utf8),
-                Some(s) => Ok(T::from(s)),
-            }
+        fn from_str(s: &str) -> Result<T, Infallible> {
+            Ok(T::from(s))
         }
     }
 }
 
 specialize! {
     impl (&&&&&&) Specialize3 for From<OsString> {
-        fn specialized(&self) -> Result<T, Infallible> {
-            Ok(T::from(self.0.0.to_os_string()))
+        fn from_os_str(s: &OsStr) -> Result<T, Infallible> {
+            Ok(T::from(s.to_os_string()))
         }
     }
 }
 
 specialize! {
     impl (&&&&&&&) Specialize2 for From<&'a Path> {
-        fn specialized(&self) -> Result<T, Infallible> {
-            Ok(T::from(Path::new(self.0.0)))
+        fn from_os_str(s: &OsStr) -> Result<T, Infallible> {
+            Ok(T::from(Path::new(s)))
         }
     }
 }
 
 specialize! {
     impl (&&&&&&&&) Specialize1 for From<&'a OsStr> {
-        fn specialized(&self) -> Result<T, Infallible> {
-            Ok(T::from(self.0.0))
+        fn from_os_str(s: &OsStr) -> Result<T, Infallible> {
+            Ok(T::from(s))
         }
     }
 }
