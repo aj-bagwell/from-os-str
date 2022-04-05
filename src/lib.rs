@@ -1,12 +1,18 @@
-use std::{convert::Infallible, ffi::OsStr, marker::PhantomData, path::Path, str::FromStr};
+use std::{
+    convert::Infallible,
+    ffi::{OsStr, OsString},
+    marker::PhantomData,
+    path::Path,
+    str::FromStr,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Error<T> {
+pub enum Error<T> {
     Utf8,
     ParseErr(T),
 }
 
-struct Wrap<T>(T);
+pub struct Wrap<T>(pub T);
 
 // Generate a trait for one layer of autoref based specialization
 // https://lukaskalbertodt.github.io/2019/12/05/generalized-autoref-based-specialization.html
@@ -14,7 +20,7 @@ macro_rules! specialize {
     (impl ($($and:tt)+) $name:ident for $from_ty:path {
         fn specialized(&$self:ident) -> Result<T, $err:ty> {$($body:tt)*}
     }) => {
-        trait $name {
+        pub trait $name {
             type Return;
             fn specialized(&self) -> Self::Return;
         }
@@ -28,7 +34,7 @@ macro_rules! specialize {
 
 // Conversions from lowest priority to heighest
 specialize! {
-    impl (&) Specialize6 for FromStr {
+    impl (&) Specialize8 for FromStr {
         fn specialized(&self) -> Result<T, Error<T::Err>> {
             match self.0 .0.to_str() {
                 None => Err(Error::Utf8),
@@ -39,7 +45,7 @@ specialize! {
 }
 
 specialize! {
-    impl (&&) Specialize5 for TryFrom<&'a OsStr> {
+    impl (&&) Specialize7 for TryFrom<&'a OsStr> {
         fn specialized(&self) -> Result<T, T::Error> {
             T::try_from(self.0 .0)
         }
@@ -47,7 +53,7 @@ specialize! {
 }
 
 specialize! {
-    impl (&&&) Specialize4 for TryFrom<&'a str> {
+    impl (&&&) Specialize6 for TryFrom<&'a str> {
         fn specialized(&self) -> Result<T, Error<T::Error>> {
             match self.0 .0.to_str() {
                 None => Err(Error::Utf8),
@@ -58,17 +64,20 @@ specialize! {
 }
 
 specialize! {
-    impl (&&&&) Specialize3 for From<&'a Path> {
-        fn specialized(&self) -> Result<T, Infallible> {
-            Ok(T::from(Path::new(self.0.0)))
+    impl (&&&&) Specialize5 for From<String> {
+        fn specialized(&self) -> Result<T, Error<Infallible>> {
+            match self.0.0.to_str() {
+                None => Err(Error::Utf8),
+                Some(s) => Ok(T::from(s.to_string())),
+            }
         }
     }
 }
 
 specialize! {
-    impl (&&&&&) Specialize2 for From<&'a str> {
+    impl (&&&&&) Specialize4 for From<&'a str> {
         fn specialized(&self) -> Result<T, Error<Infallible>> {
-            match self.0 .0.to_str() {
+            match self.0.0.to_str() {
                 None => Err(Error::Utf8),
                 Some(s) => Ok(T::from(s)),
             }
@@ -77,9 +86,25 @@ specialize! {
 }
 
 specialize! {
-    impl (&&&&&&) Specialize1 for From<&'a OsStr> {
+    impl (&&&&&&) Specialize3 for From<OsString> {
         fn specialized(&self) -> Result<T, Infallible> {
-            Ok(T::from(self.0 .0))
+            Ok(T::from(self.0.0.to_os_string()))
+        }
+    }
+}
+
+specialize! {
+    impl (&&&&&&&) Specialize2 for From<&'a Path> {
+        fn specialized(&self) -> Result<T, Infallible> {
+            Ok(T::from(Path::new(self.0.0)))
+        }
+    }
+}
+
+specialize! {
+    impl (&&&&&&&&) Specialize1 for From<&'a OsStr> {
+        fn specialized(&self) -> Result<T, Infallible> {
+            Ok(T::from(self.0.0))
         }
     }
 }
@@ -87,7 +112,7 @@ specialize! {
 #[macro_export]
 macro_rules! try_from_os_str {
     ($name:ident as $typ:ty) => {
-        (&&&&&&&Wrap(($name, PhantomData::<$typ>))).specialized()
+        (&&&&&&&&Wrap(($name, PhantomData::<$typ>))).specialized()
     };
 }
 
@@ -116,10 +141,15 @@ mod tests {
     #[test]
     fn it_works() {
         let os_str = OsStr::new("123");
+        let os_str_2 = try_from_os_str!(os_str as &OsStr);
+        assert_eq!(os_str_2, Ok(os_str));
+
         let path = try_from_os_str!(os_str as &Path);
         assert_eq!(path, Ok(Path::new("123")));
         let str = try_from_os_str!(os_str as &str);
         assert_eq!(str, Ok("123"));
+        let string = try_from_os_str!(os_str as String);
+        assert_eq!(string, Ok("123".to_string()));
         let int = try_from_os_str!(os_str as u8);
         assert_eq!(int, Ok(123));
 
